@@ -10,6 +10,12 @@
 
 所以做了这个很小的挂件：把剩余额度放进菜单栏，抬头就能看到。想看细节时点开，不想管的时候就让它安静待着。
 
+## 灵感来源
+
+灵感来自炉子社区里 **@禾川** 发布的《分享一个Codex对话提醒的方案》。感谢这篇帖子和开源项目带来的启发，让我也想为自己的 macOS 做一个随时能看到 Codex 额度的小挂件。
+
+原项目：[Vincent-hechuan/codex-quota-band](https://github.com/Vincent-hechuan/codex-quota-band)。
+
 ## 能做什么
 
 - 菜单栏常驻显示主 Codex 额度的剩余百分比。
