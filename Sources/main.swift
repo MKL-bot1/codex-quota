@@ -149,7 +149,7 @@ final class QuotaStore: ObservableObject {
         }
         do {
             try p.run()
-            send(["method":"initialize","id":0,"params":["clientInfo":["name":"codex_quota_local","title":"Codex Quota","version":"1.1.0"]]])
+            send(["method":"initialize","id":0,"params":["clientInfo":["name":"codex_quota_local","title":"Codex Quota","version":"1.1.1"]]])
         } catch { fail("无法启动 Codex 连接，请检查安装") }
     }
     func send(_ obj: [String:Any]) {
@@ -236,6 +236,7 @@ struct WindowRow: View {
 struct QuotaView: View {
     @ObservedObject var store: QuotaStore
     let pinned: Bool
+    let height: CGFloat
     let pinAction: ()->Void
     var body: some View {
         VStack(alignment:.leading,spacing:18) {
@@ -259,12 +260,12 @@ struct QuotaView: View {
                             }.padding(14).background(.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:13))
                         }
                     }
-                }.frame(height:320)
+                }.frame(height:max(100, height - 240))
             } else {
                 VStack(spacing:12) {
                     Image(systemName:store.refreshing ? "arrow.triangle.2.circlepath" : "questionmark.circle").font(.largeTitle).foregroundStyle(.secondary)
                     Text(store.refreshing ? "正在读取额度…" : "暂无可用额度数据").font(.callout)
-                }.frame(maxWidth:.infinity,minHeight:150)
+                }.frame(maxWidth:.infinity).frame(height:max(100, height - 240))
             }
             VStack(alignment:.leading,spacing:6) {
                 HStack(spacing:6) {
@@ -292,7 +293,7 @@ struct QuotaView: View {
                     Button("退出小工具") { NSApp.terminate(nil) }
                 } label: { Image(systemName:"ellipsis.circle") }.menuStyle(.borderlessButton).frame(width:24)
             }.font(.system(size:12))
-        }.padding(20).frame(width:340)
+        }.padding(20).frame(width:340,height:height,alignment:.top)
     }
 }
 
@@ -318,10 +319,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem.button?.target = self; statusItem.button?.action = #selector(togglePopover)
         statusItem.button?.font = NSFont.monospacedDigitSystemFont(ofSize:12,weight:.medium)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView:QuotaView(store:store,pinned:false,pinAction:{ [weak self] in self?.showPanel() }))
+        // Size explicitly when opening; never let loading -> loaded resize around the anchor.
         store.onChange = { [weak self] in self?.updateTitle() }
         updateTitle(); store.start()
         if CommandLine.arguments.contains("--show-panel") { showPanel() }
+        if CommandLine.arguments.contains("--show-popover") {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps:true)
+            DispatchQueue.main.async { [weak self] in self?.togglePopover() }
+        }
     }
     func updateTitle() {
         statusItem?.button?.title = store.statusTitle
@@ -334,23 +340,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     @objc func togglePopover() {
         if popover.isShown { popover.performClose(nil) }
-        else if let button = statusItem.button { popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY) }
+        else if let button = statusItem.button {
+            let size = displaySize(on:button.window?.screen)
+            let host = NSHostingController(rootView:QuotaView(store:store,pinned:false,height:size.height,pinAction:{ [weak self] in self?.showPanel() }))
+            host.sizingOptions = []
+            host.preferredContentSize = size
+            host.view.setFrameSize(size)
+            popover.contentViewController = host
+            popover.contentSize = size
+            popover.animates = false
+            popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY)
+        }
+    }
+    func displaySize(on screen: NSScreen?) -> NSSize {
+        let available = (screen ?? NSScreen.main)?.visibleFrame.height ?? 720
+        return NSSize(width:340,height:min(560,max(340,available - 60)))
     }
     func showPanel() {
         popover.performClose(nil)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps:true)
         if let panel { panel.makeKeyAndOrderFront(nil); return }
-        let panel = NSPanel(contentRect:NSRect(x:0,y:0,width:340,height:520),styleMask:[.titled,.closable,.utilityWindow],backing:.buffered,defer:false)
+        let size = displaySize(on:statusItem?.button?.window?.screen)
+        let panel = NSPanel(contentRect:NSRect(origin:.zero,size:size),styleMask:[.titled,.closable,.utilityWindow],backing:.buffered,defer:false)
         panel.title = "Codex 额度"; panel.isReleasedWhenClosed = false; panel.delegate = self
         panel.hidesOnDeactivate = false; panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces,.fullScreenAuxiliary]
-        panel.contentViewController = NSHostingController(rootView:QuotaView(store:store,pinned:true,pinAction:{ [weak self] in self?.panel?.close() }))
+        let host = NSHostingController(rootView:QuotaView(store:store,pinned:true,height:size.height,pinAction:{ [weak self] in self?.panel?.close() }))
+        host.sizingOptions = []
+        host.preferredContentSize = size
+        host.view.setFrameSize(size)
+        panel.contentViewController = host
+        panel.setContentSize(size)
         if let screen = NSScreen.main { panel.setFrameTopLeftPoint(NSPoint(x:screen.visibleFrame.maxX-360,y:screen.visibleFrame.maxY-25)) }
         self.panel = panel; panel.makeKeyAndOrderFront(nil)
     }
     func windowWillClose(_ notification: Notification) { NSApp.setActivationPolicy(.accessory) }
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showPanel(); return true }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if popover.isShown { return false }
+        if CommandLine.arguments.contains("--show-popover") { togglePopover(); return false }
+        showPanel(); return true
+    }
     func applicationWillTerminate(_ notification: Notification) { store.stop() }
 }
 

@@ -28,7 +28,7 @@
 
 ### 使用下载版
 
-1. 从 [Releases](https://github.com/MKL-bot1/codex-quota/releases) 下载 `Codex-Quota-v1.1.0-macOS-universal.zip`。
+1. 从 [Releases](https://github.com/MKL-bot1/codex-quota/releases) 下载 `Codex-Quota-v1.1.1-macOS-universal.zip`。
 2. 解压，将 `Codex Quota.app` 放到「应用程序」或个人 `~/Applications` 文件夹。
 3. 打开小工具，在屏幕顶部菜单栏找到图标和百分比。首次查询可能需要数秒。
 4. 点击菜单栏项查看详情，点击图钉打开桌面面板。关闭面板不会退出菜单栏工具。
@@ -106,3 +106,9 @@ open "dist/Codex Quota.app"
 接口依据：[Codex App Server 官方文档](https://learn.chatgpt.com/docs/app-server)。上游接口、签名和安装布局变化可能需要适配。
 
 MIT License。欢迎 Issue 和 Pull Request；**请勿上传自己的账号凭据、完整配置或未脱敏日志。**
+
+## v1.1.1 修复
+
+修复菜单栏弹窗加载后只显示下半部分的问题：在打开前明确设置弹窗及承载视图尺寸，并根据所在屏幕的可用高度调整列表区域；加载与读取完成使用一致尺寸。保留原有毛玻璃外观。桌面面板同步使用相同的尺寸规则。
+
+从早期本地版升级时，请先退出并移除旧版 App 的登录项，再保留一份新版本，以免不同应用标识的旧版与公开版同时运行。

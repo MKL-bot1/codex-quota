@@ -14,7 +14,7 @@ spec.loader.exec_module(checks)
 app = root / 'dist/Codex Quota.app'
 checks.check_tree(root, checks.PUBLIC_FILES, ignore=('.git', 'dist'))
 checks.check_tree(app, checks.APP_FILES)
-archive_path = root / 'dist/Codex-Quota-v1.1.0-macOS-universal.zip'
+archive_path = root / 'dist/Codex-Quota-v1.1.1-macOS-universal.zip'
 with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
     for relative in sorted(checks.APP_FILES):
         source = app / relative
