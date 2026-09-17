@@ -1,0 +1,11 @@
+dist/
+.DS_Store
+*.dSYM/
+*.log
+.env
+.env.*
+auth.json
+status.json
+.codex/
+.swiftpm/
+.build/
