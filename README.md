@@ -12,7 +12,7 @@
 
 ## 灵感来源
 
-灵感来自炉子社区里 **@禾川** 发布的《分享一个Codex对话提醒的方案》。感谢这篇帖子和开源项目带来的启发，让我也想为自己的 macOS 做一个随时能看到 Codex 额度的小挂件。
+灵感来自炉子里 **@禾川** 发布的《分享一个Codex对话提醒的方案》。感谢这篇帖子和开源项目带来的启发，让我也想为自己的 macOS 做一个随时能看到 Codex 额度的小挂件。
 
 原项目：[Vincent-hechuan/codex-quota-band](https://github.com/Vincent-hechuan/codex-quota-band)。
 
