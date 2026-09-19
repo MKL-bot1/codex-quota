@@ -149,7 +149,7 @@ final class QuotaStore: ObservableObject {
         }
         do {
             try p.run()
-            send(["method":"initialize","id":0,"params":["clientInfo":["name":"codex_quota_local","title":"Codex Quota","version":"1.1.1"]]])
+            send(["method":"initialize","id":0,"params":["clientInfo":["name":"codex_quota_local","title":"Codex Quota","version":"1.1.2"]]])
         } catch { fail("无法启动 Codex 连接，请检查安装") }
     }
     func send(_ obj: [String:Any]) {
@@ -179,8 +179,15 @@ final class QuotaStore: ObservableObject {
                 accept(snapshot)
             } else if obj["method"] as? String == "account/updated" {
                 snapshot = nil; updatedAt = nil
-                fail("账号状态已变化，请刷新重新连接")
-                return
+                // Startup also emits this notification. Keep the transport alive,
+                // invalidate any older request, and read after the notification.
+                pendingID = nil
+                error = nil
+                if ready {
+                    refreshing = false
+                    refresh()
+                }
+                onChange?()
             } else if obj["method"] as? String == "account/rateLimits/updated", !refreshing {
                 // Notifications may be partial: fetch a full snapshot before replacing existing buckets.
                 refresh()
@@ -404,9 +411,46 @@ func selfTest() {
     let allowed = Set(["HOME","PATH","TMPDIR","USER","LOGNAME","LANG","LC_ALL","LC_CTYPE"])
     precondition(Set(CodexInstallation.environment().keys).isSubset(of:allowed))
     precondition(CodexInstallation.environment()["OPENAI_API_KEY"] == nil)
+    let store = QuotaStore()
+    store.ready = true
+    store.input = Pipe()
+    store.accept(weekly)
+    store.refresh()
+    let oldID = store.pendingID!
+    let token = store.generation
+    store.receive(Data((#"{"method":"account/updated","params":{"authMode":"chatgpt","planType":"pro"}}"# + "\n").utf8))
+    let freshID = store.pendingID!
+    precondition(store.ready && store.generation == token && store.refreshing)
+    precondition(store.snapshot == nil && store.updatedAt == nil && freshID != oldID)
+    func response(_ id:Int) -> Data {
+        Data("{\"id\":\(id),\"result\":{\"rateLimits\":{\"limitId\":\"codex\",\"primary\":{\"usedPercent\":25}}}}\n".utf8)
+    }
+    store.receive(response(oldID))
+    precondition(store.snapshot == nil && store.refreshing)
+    store.receive(response(freshID))
+    precondition(store.remaining == 75 && !store.refreshing && store.error == nil)
+    store.stop()
+    print("PASS: account notification preserves connection, clears old data, rejects old response and accepts fresh quota")
     print("PASS: quota parsing, missing windows, bounds, invalid data, identity exclusion, child environment allowlist")
 }
 if CommandLine.arguments.contains("--self-test") { selfTest(); exit(0) }
+if CommandLine.arguments.contains("--connection-test") {
+    signal(SIGPIPE, SIG_IGN)
+    let store = QuotaStore()
+    var reads = 0
+    store.onChange = {
+        if store.error != nil { print("FAIL: live quota connection"); store.stop(); exit(1) }
+        if store.snapshot != nil && !store.refreshing {
+            reads += 1
+            if reads == 2 { print("PASS: live initial quota and repeat refresh"); store.stop(); exit(0) }
+            DispatchQueue.main.async { store.refresh() }
+        }
+    }
+    DispatchQueue.main.async { store.refresh() }
+    DispatchQueue.main.asyncAfter(deadline:.now()+65) { store.stop(); exit(1) }
+    RunLoop.main.run()
+    exit(1)
+}
 signal(SIGPIPE, SIG_IGN)
 let application = NSApplication.shared
 let delegate = AppDelegate()
