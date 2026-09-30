@@ -44,21 +44,32 @@ enum CodexInstallation {
     static let appPaths = ["/Applications/Codex.app", "/Applications/ChatGPT.app",
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Codex.app").path,
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/ChatGPT.app").path]
-    static func trustedApp() -> URL? {
+    static let executablePaths = [
+        "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+        "Contents/Resources/codex"
+    ]
+    static func trustedApp() -> URL? { trustedInstallation()?.app }
+    static func trustedInstallation() -> (app: URL, executable: URL)? {
+        var requirement: SecRequirement?
+        let rule = "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\""
+        guard SecRequirementCreateWithString(rule as CFString, [], &requirement) == errSecSuccess,
+              let requirement else { return nil }
         for path in appPaths {
             let url = URL(fileURLWithPath:path)
             guard Bundle(url:url)?.bundleIdentifier == "com.openai.codex" else { continue }
-            let executable = url.appendingPathComponent("Contents/Resources/codex")
-            guard FileManager.default.isExecutableFile(atPath:executable.path) else { continue }
-            var appCode: SecStaticCode?, binaryCode: SecStaticCode?, requirement: SecRequirement?
-            let rule = "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\""
-            guard SecRequirementCreateWithString(rule as CFString, [], &requirement) == errSecSuccess,
-                  SecStaticCodeCreateWithPath(url as CFURL, [], &appCode) == errSecSuccess,
-                  SecStaticCodeCreateWithPath(executable as CFURL, [], &binaryCode) == errSecSuccess,
-                  let appCode, let binaryCode, let requirement,
-                  SecStaticCodeCheckValidity(appCode, [], requirement) == errSecSuccess,
-                  SecStaticCodeCheckValidity(binaryCode, [], requirement) == errSecSuccess else { continue }
-            return url
+            var appCode: SecStaticCode?
+            guard SecStaticCodeCreateWithPath(url as CFURL, [], &appCode) == errSecSuccess,
+                  let appCode,
+                  SecStaticCodeCheckValidity(appCode, [], requirement) == errSecSuccess else { continue }
+            for relative in executablePaths {
+                let executable = url.appendingPathComponent(relative)
+                guard FileManager.default.isExecutableFile(atPath:executable.path) else { continue }
+                var binaryCode: SecStaticCode?
+                guard SecStaticCodeCreateWithPath(executable as CFURL, [], &binaryCode) == errSecSuccess,
+                      let binaryCode,
+                      SecStaticCodeCheckValidity(binaryCode, [], requirement) == errSecSuccess else { continue }
+                return (url, executable)
+            }
         }
         return nil
     }
@@ -127,11 +138,11 @@ final class QuotaStore: ObservableObject {
         let task = DispatchWorkItem { [weak self] in self?.fail("连接超时，将自动重试") }
         timeout = task; DispatchQueue.main.asyncAfter(deadline:.now()+30,execute:task)
         if ready { requestQuota(); return }
-        guard let appURL = CodexInstallation.trustedApp() else {
-            fail("未找到有效签名的 Codex，请安装官方 App 并登录"); return
+        guard let installation = CodexInstallation.trustedInstallation() else {
+            fail("未找到受支持且签名有效的 Codex，请检查安装或更新小工具"); return
         }
         let p = Process(), stdinPipe = Pipe(), stdoutPipe = Pipe()
-        p.executableURL = appURL.appendingPathComponent("Contents/Resources/codex")
+        p.executableURL = installation.executable
         p.arguments = ["app-server", "--stdio", "-c", "analytics.enabled=false"]
         // Avoid running inside a project whose local configuration could change startup.
         p.currentDirectoryURL = URL(fileURLWithPath:"/")
@@ -149,7 +160,7 @@ final class QuotaStore: ObservableObject {
         }
         do {
             try p.run()
-            send(["method":"initialize","id":0,"params":["clientInfo":["name":"codex_quota_local","title":"Codex Quota","version":"1.1.2"]]])
+            send(["method":"initialize","id":0,"params":["clientInfo":["name":"codex_quota_local","title":"Codex Quota","version":"1.1.3"]]])
         } catch { fail("无法启动 Codex 连接，请检查安装") }
     }
     func send(_ obj: [String:Any]) {

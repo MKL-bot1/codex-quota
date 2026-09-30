@@ -34,7 +34,7 @@
 
 ### 使用下载版
 
-1. 从 [Releases](https://github.com/MKL-bot1/codex-quota/releases) 下载 `Codex-Quota-v1.1.2-macOS-universal.zip`。
+1. 从 [Releases](https://github.com/MKL-bot1/codex-quota/releases) 下载 `Codex-Quota-v1.1.3-macOS-universal.zip`。
 2. 解压，将 `Codex Quota.app` 放到「应用程序」或个人 `~/Applications` 文件夹。
 3. 打开小工具，在屏幕顶部菜单栏找到图标和百分比。首次查询可能需要数秒。
 4. 点击菜单栏项查看详情，点击图钉打开桌面面板。关闭面板不会退出菜单栏工具。
@@ -122,3 +122,7 @@ MIT License。欢迎 Issue 和 Pull Request；**请勿上传自己的账号凭�
 ## v1.1.2 修复
 
 兼容 Codex 建立连接时发送的账号状态通知，修复反复提示“账号状态已变化”、无法显示额度的问题。收到通知后清空旧额度、忽略通知前的查询结果，并在现有连接上重新查询，无需反复手动重连。
+
+## v1.1.3 修复
+
+兼容官方 Codex App 新版内置 CLI 目录，同时保留旧版目录支持。仍校验官方 App 与实际执行文件的 OpenAI 签名，不执行 PATH 中的任意程序。安装布局不受支持时，提示检查安装或更新小工具。
